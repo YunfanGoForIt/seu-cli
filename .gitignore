@@ -1,0 +1,10 @@
+node_modules/
+*.tgz
+.DS_Store
+*.log
+
+# Local session and cookie files
+.seu-cli/
+session.json
+*.cookie
+cookie*.txt
