@@ -12,7 +12,7 @@ export async function getBackend({ daemonUrl, backend } = {}) {
     if (!session) {
       throw notLoggedIn('No saved eHall cookie. Run `seu-cli auth import --cookie-file cookies.txt` first.');
     }
-    return new FetchBackend(session.cookie ?? '', session.portalCookie ?? null);
+    return new FetchBackend(session.cookie ?? '', session.portalCookie ?? null, session.hostCookies ?? {});
   }
 
   if (mode === 'bridge') {

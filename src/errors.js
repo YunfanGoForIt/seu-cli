@@ -11,6 +11,7 @@ export class CliError extends Error {
 const EXIT_CODES = {
   INVALID_ARGUMENT: 2,
   UNKNOWN_COMMAND: 2,
+  UNSUPPORTED_BACKEND: 2,
   NOT_LOGGED_IN: 3,
   PORTAL_COOKIE_REQUIRED: 3,
   PERMISSION_DENIED: 4,
@@ -60,4 +61,12 @@ export function pageChanged(message) {
   return new CliError('PAGE_CHANGED', message, {
     hint: 'The SEU page or API shape may have changed. Re-run once; if it persists, update the command adapter.'
   });
+}
+
+export function requireFetchBackend(backend) {
+  if (backend.kind !== 'fetch') {
+    throw new CliError('UNSUPPORTED_BACKEND', 'This command currently requires the fetch backend.', {
+      hint: 'Run `seu-cli auth refresh` and retry without `--backend bridge`.'
+    });
+  }
 }

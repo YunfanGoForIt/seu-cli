@@ -5,10 +5,11 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const TIMEOUT_MS = 25_000;
 
 export class FetchBackend {
-  constructor(cookie, portalCookie = null) {
+  constructor(cookie, portalCookie = null, hostCookies = {}) {
     this.kind = 'fetch';
     this.cookie = cookie;
     this.portalCookie = portalCookie;
+    this.hostCookies = hostCookies;
   }
 
   async loginStatus() {
@@ -181,6 +182,94 @@ export class FetchBackend {
       apps: collectApps(json),
       sourceUrl: `${EHALL}/new/index.html`
     };
+  }
+
+  async programShow() {
+    const json = await this.post('/jwapp/sys/xsfacx/modules/pyfacxepg/grpyfacx.do', '');
+    const row = rowsOf(json, 'grpyfacx')[0];
+    if (!row) throw pageChanged('Training program API returned no rows.');
+    return row;
+  }
+
+  async warnings() {
+    const json = await this.post('/jwapp/sys/xyyj/modules/xsxyyjjg/cxxsyjpcjg.do', '');
+    return rowsOf(json, 'cxxsyjpcjg');
+  }
+
+  async timetableClasses({ term, page = 1, pageSize = 50 } = {}) {
+    let selected = term;
+    if (!selected) {
+      const termJson = await this.post('/jwapp/sys/kcbcx/modules/bjkcb/dqxnxq.do', '');
+      selected = rowsOf(termJson, 'dqxnxq')[0]?.DM ?? null;
+    }
+    if (!selected) throw pageChanged('Timetable API did not return a current term.');
+
+    const json = await this.post(
+      '/jwapp/sys/kcbcx/modules/bjkcb/bjcx.do',
+      `XNXQDM=${encodeURIComponent(selected)}&SFSY=1&*order=-NJ%2C%2BYXPX%2C%2BZYPX%2C%2BPX&SFYPK=1&pageSize=${pageSize}&pageNumber=${page}`
+    );
+    return {
+      term: selected,
+      total: json?.datas?.bjcx?.totalSize ?? null,
+      rows: rowsOf(json, 'bjcx')
+    };
+  }
+
+  async classroomTree() {
+    return this.itsPost('/its/crb/back/api/building/booking/tree', {});
+  }
+
+  async classroomList(payload) {
+    return this.itsPost('/its/crb/back/api/booking/classroom/list', payload);
+  }
+
+  async itsPost(path, body) {
+    const cookie = this.hostCookies?.['its.seu.edu.cn'];
+    if (!cookie) {
+      throw new CliError('SYNC_UNAVAILABLE', 'No session for its.seu.edu.cn was found.', {
+        hint: 'Open 教室查借 in Chrome once, then run `seu-cli auth refresh`.'
+      });
+    }
+
+    let response;
+    try {
+      response = await fetch(`https://its.seu.edu.cn${path}`, {
+        method: 'POST',
+        headers: {
+          'Cookie': cookie,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Origin': 'https://its.seu.edu.cn',
+          'Referer': 'https://its.seu.edu.cn/its/crb/front/',
+          'User-Agent': USER_AGENT
+        },
+        body: JSON.stringify(body ?? {}),
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+    } catch (cause) {
+      throw new CliError('NETWORK_ERROR', `Request to its.seu.edu.cn failed: ${cause?.message ?? cause}`, { cause });
+    }
+
+    if (response.status === 401) throw notLoggedIn('its.seu.edu.cn rejected the saved cookie.');
+    if (response.status === 403) {
+      throw new CliError('PERMISSION_DENIED', `its.seu.edu.cn returned HTTP 403 for ${path}.`);
+    }
+    if (response.status === 429) {
+      throw new CliError('RATE_LIMITED', 'its.seu.edu.cn rate-limited this client.');
+    }
+
+    const text = await response.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw pageChanged(`its.seu.edu.cn returned non-JSON content for ${path}.`);
+    }
+    if (json?.success === false || (json?.code !== undefined && Number(json.code) !== 200)) {
+      throw pageChanged(`its.seu.edu.cn returned: ${json?.info ?? 'unknown error'}.`);
+    }
+    return json?.data;
   }
 
   async currentTerm() {

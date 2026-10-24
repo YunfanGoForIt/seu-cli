@@ -5,11 +5,16 @@ import { parseOptions, kebab } from './args.js';
 import { getBackend } from './backends/index.js';
 import { CliError, exitCodeFor, invalidArgument, toErrorPayload } from './errors.js';
 import { appsList } from './commands/apps.js';
-import { authImport, authLogout, authStatus } from './commands/auth.js';
+import { authImport, authLogout, authRefresh, authStatus } from './commands/auth.js';
+import { classroomEmpty } from './commands/classroom.js';
 import { courseExportIcs, courseToday, courseWeek } from './commands/course.js';
 import { examList, examUpcoming } from './commands/exam.js';
 import { gradeList, gradeSummary } from './commands/grade.js';
 import { loginStatus } from './commands/login.js';
+import { programShow } from './commands/program.js';
+import { termCurrent } from './commands/term.js';
+import { timetableClasses } from './commands/timetable.js';
+import { warningList } from './commands/warning.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -27,6 +32,15 @@ const COMMANDS = {
     },
     run: (context, options) => authImport(context, options)
   },
+  'auth refresh': {
+    summary: '从本机 Chrome 静默同步 eHall Cookie（无需插件）。',
+    needsBackend: false,
+    options: {
+      browser: { type: 'string' },
+      profile: { type: 'string' }
+    },
+    run: (_context, options) => authRefresh(options)
+  },
   'auth status': {
     summary: '检查当前登录态（默认优先使用已导入的 Cookie）。',
     options: {},
@@ -43,6 +57,11 @@ const COMMANDS = {
     options: {},
     run: (context) => loginStatus(context)
   },
+  'term current': {
+    summary: '查询当前学期、教学周和星期。',
+    options: {},
+    run: (context) => termCurrent(context)
+  },
   'course today': {
     summary: '查询今天（或指定日期）的课表。',
     options: { date: { type: 'date' } },
@@ -55,6 +74,39 @@ const COMMANDS = {
       weekday: { type: 'integer', min: 1, max: 7 }
     },
     run: (context, options) => courseWeek(context, options)
+  },
+  'classroom empty': {
+    summary: '查询某校区/教学楼在指定日期和节次的空闲教室。',
+    options: {
+      campus: { type: 'string' },
+      building: { type: 'string' },
+      date: { type: 'date' },
+      sections: { type: 'string' },
+      start: { type: 'string' },
+      end: { type: 'string' },
+      selfStudy: { type: 'boolean' }
+    },
+    run: (context, options) => classroomEmpty(context, options)
+  },
+  'program show': {
+    summary: '查看个人培养方案与学分完成进度。',
+    options: {},
+    run: (context) => programShow(context)
+  },
+  'warning': {
+    summary: '查询学业预警结果。',
+    options: {},
+    run: (context) => warningList(context)
+  },
+  'timetable classes': {
+    summary: '查询全校班级列表，可按关键词过滤。',
+    options: {
+      term: { type: 'term' },
+      page: { type: 'integer', min: 1, max: 100 },
+      limit: { type: 'integer', min: 1, max: 200 },
+      search: { type: 'string' }
+    },
+    run: (context, options) => timetableClasses(context, options)
   },
   'course export-ics': {
     summary: '把课表导出为 .ics 日历文件。',
@@ -104,7 +156,7 @@ const COMMANDS = {
 };
 
 async function main(argv) {
-  const { args, daemonUrl, backend } = extractGlobalOptions(argv);
+  const { args, daemonUrl, backend, noRefresh } = extractGlobalOptions(argv);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     writeJson({ ok: true, data: buildHelp(args.filter((arg) => !arg.startsWith('-'))) });
@@ -150,6 +202,29 @@ async function main(argv) {
     return 0;
   } catch (error) {
     const payload = toErrorPayload(error);
+
+    if (payload.code === 'NOT_LOGGED_IN'
+      && definition.needsBackend !== false
+      && backendKind === 'fetch'
+      && !noRefresh) {
+      try {
+        await authRefresh({});
+        const options = parseOptions(rest, definition.options);
+        const retryBackend = await getBackend({ daemonUrl, backend: 'fetch' });
+        const data = await definition.run({ backend: retryBackend }, options);
+        writeJson({
+          ok: true,
+          data,
+          meta: { command: commandKey, backend: 'fetch', daemonUrl, refreshed: true }
+        });
+        return 0;
+      } catch {
+        payload.hint = [payload.hint, '也可以运行 `seu-cli auth refresh` 从 Chrome 同步会话。']
+          .filter(Boolean)
+          .join(' ');
+      }
+    }
+
     writeJson({ ok: false, error: payload, meta: { command: commandKey, backend: backendKind } });
     return exitCodeFor(payload.code);
   }
@@ -159,9 +234,14 @@ function extractGlobalOptions(argv) {
   const args = [];
   let daemonUrl = process.env.SEU_DAEMON_URL || DEFAULT_DAEMON_URL;
   let backend = process.env.SEU_BACKEND || null;
+  let noRefresh = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--no-refresh') {
+      noRefresh = true;
+      continue;
+    }
     if (arg === '--daemon-url') {
       const value = argv[index + 1];
       if (!value || value.startsWith('--')) throw invalidArgument('--daemon-url requires a value.');
@@ -187,7 +267,7 @@ function extractGlobalOptions(argv) {
     args.push(arg);
   }
 
-  return { args, daemonUrl, backend };
+  return { args, daemonUrl, backend, noRefresh };
 }
 
 function resolveCommand(args) {

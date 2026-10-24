@@ -20,7 +20,7 @@ export async function loadSession() {
   }
 }
 
-export async function saveSession({ cookie = '', portalCookie = '', user = null }) {
+export async function saveSession({ cookie = '', portalCookie = '', hostCookies = {}, user = null }) {
   const file = sessionPath();
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -29,6 +29,7 @@ export async function saveSession({ cookie = '', portalCookie = '', user = null 
     savedAt: new Date().toISOString(),
     ...(cookie ? { cookie } : {}),
     ...(portalCookie ? { portalCookie } : {}),
+    ...(Object.keys(hostCookies).length ? { hostCookies } : {}),
     ...(user ? { user } : {})
   };
   await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });

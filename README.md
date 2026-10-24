@@ -89,13 +89,25 @@ seu-cli --backend bridge course today
 
 不导入任何 Cookie；CLI 每次通过浏览器读取数据。
 
+## 静默续期
+
+```bash
+seu-cli auth refresh
+```
+
+直接读取本机 Chrome 的 Cookie 数据库，用 macOS Keychain 派生密钥解密，不需要浏览器插件或 Playwright。如果应用会话失效，它会用 Chrome 打开一次门户/课表页，让浏览器自己完成 SSO，然后重新同步；fetch 命令遇到 `NOT_LOGGED_IN` 也会自动尝试一次。可用 `--no-refresh` 关闭自动续期。
+
+目前自动同步支持 macOS + Chrome/Edge；其他平台请用 `auth import` 手动导入。
+
 ## 命令
 
 ```bash
 seu-cli auth import --cookie-file app-cookie.txt [--portal-cookie-file portal-cookie.txt]
+seu-cli auth refresh
 seu-cli auth status
 seu-cli auth logout
 
+seu-cli term current
 seu-cli course today [--date YYYY-MM-DD]
 seu-cli course week [--week N] [--weekday 1-7]
 seu-cli course export-ics [--week N] [--from-week M --to-week N] [--out schedule.ics]
@@ -107,7 +119,14 @@ seu-cli exam list [--term 2025-2026-2]
 seu-cli exam upcoming [--term 2025-2026-2] [--days N] [--limit N]
 
 seu-cli apps list [--search 关键词] [--limit N]
+
+seu-cli program show
+seu-cli warning
+seu-cli classroom empty --campus 九龙湖 [--building 教一] [--date YYYY-MM-DD] [--sections 6-7]
+seu-cli timetable classes [--term 2026-2027-2] [--search 关键词] [--limit N]
 ```
+
+`program`、`warning`、`classroom`、`timetable` 和 `apps list` 目前需要 fetch 后端。
 
 所有命令默认输出：
 
@@ -166,8 +185,8 @@ seu-cli course today --date 2026-10-21
 | 退出码 | 错误码 | 含义 |
 |---|---|---|
 | 0 | — | 成功 |
-| 2 | `INVALID_ARGUMENT`, `UNKNOWN_COMMAND` | 参数或命令错误，不要盲目重试 |
-| 3 | `NOT_LOGGED_IN`, `PORTAL_COOKIE_REQUIRED` | Cookie 缺失/过期，或缺少门户 Cookie |
+| 2 | `INVALID_ARGUMENT`, `UNKNOWN_COMMAND`, `UNSUPPORTED_BACKEND` | 参数、命令或后端不匹配 |
+| 3 | `NOT_LOGGED_IN`, `PORTAL_COOKIE_REQUIRED`, `SYNC_UNSUPPORTED`, `SYNC_UNAVAILABLE` | Cookie 缺失/过期，或无法从浏览器同步 |
 | 4 | `PERMISSION_DENIED`, `RATE_LIMITED`, `PAGE_CHANGED`, `UPSTREAM_ERROR`, `APP_LAUNCH_FAILED` | 无权限、限流、接口变化或应用打不开 |
 | 5 | `NETWORK_ERROR`, `DAEMON_UNAVAILABLE`, `EXTENSION_NOT_CONNECTED` | 网络或桥接不可用 |
 
