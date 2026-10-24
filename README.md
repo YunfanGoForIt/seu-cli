@@ -25,7 +25,7 @@ npm install --global .
 
 # 或分发 tarball
 npm pack
-npm install --global ./seu-cli-0.2.1.tgz
+npm install --global ./seu-cli-0.3.0.tgz
 ```
 
 项目没有第三方运行时依赖；fetch 后端只需要 Node。
@@ -124,6 +124,11 @@ seu-cli program show
 seu-cli warning
 seu-cli classroom empty --campus 九龙湖 [--building 教一] [--date YYYY-MM-DD] [--sections 6-7]
 seu-cli timetable classes [--term 2026-2027-2] [--search 关键词] [--limit N]
+
+seu-cli library search <关键词> [--page N] [--limit N]
+seu-cli library item <marcNo>
+seu-cli library loans
+seu-cli library history [--page N]
 ```
 
 `program`、`warning`、`classroom`、`timetable` 和 `apps list` 目前需要 fetch 后端。
@@ -198,6 +203,7 @@ seu-cli course today --date 2026-10-21
 | `grade` | 成绩查询 `cjcx` | `xscjcx.do` |
 | `exam` | 我的考试安排 `studentWdksapApp` | `dqxnxq.do` / `wdksap.do` |
 | `apps` | 办事大厅应用目录 | `getUserCategoryAppList.json` |
+| `library` | 图书馆 OPAC | `ajax_search_adv.php` / `item.php` / `book_lst.php` |
 
 新增应用时，在 `src/backends/fetch.js` 和 `src/backends/bridge.js` 各加一个方法，再在 `src/commands/` 写一个只做格式化的命令。接口与抓包记录见 [docs/exploration.md](docs/exploration.md)。
 

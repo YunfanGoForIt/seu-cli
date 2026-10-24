@@ -1,13 +1,15 @@
 import { invalidArgument } from './errors.js';
 
-export function parseOptions(argv, spec = {}) {
+export function parseOptions(argv, spec = {}, { positionals: maxPositionals = 0 } = {}) {
   const options = {};
+  const positionals = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--json') continue;
     if (!arg.startsWith('--')) {
-      throw invalidArgument(`Unexpected argument: ${arg}`);
+      positionals.push(arg);
+      continue;
     }
 
     const eq = arg.indexOf('=');
@@ -39,7 +41,11 @@ export function parseOptions(argv, spec = {}) {
     options[key] = coerce(name, value, definition);
   }
 
-  return options;
+  if (positionals.length > maxPositionals) {
+    throw invalidArgument(`Unexpected argument: ${positionals[maxPositionals]}`);
+  }
+
+  return { options, positionals };
 }
 
 function coerce(name, value, definition) {

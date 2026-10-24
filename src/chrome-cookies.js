@@ -72,6 +72,9 @@ export async function readBrowserCookies(options = {}) {
       dedupe(cookies.filter((cookie) => cookie.host.endsWith('its.seu.edu.cn'))),
       ['CRBJSESSIONID', 'crbjsessionid']
     );
+    const libCookie = buildAll(
+      dedupe(cookies.filter((cookie) => cookie.host.endsWith('libopac.seu.edu.cn')))
+    );
 
     if (!appCookie && !portalCookie) {
       throw new CliError('SYNC_UNAVAILABLE', 'No eHall cookies were found in the browser profile.', {
@@ -82,7 +85,10 @@ export async function readBrowserCookies(options = {}) {
     return {
       cookie: appCookie,
       portalCookie,
-      hostCookies: itsCookie ? { 'its.seu.edu.cn': itsCookie } : {},
+      hostCookies: {
+        ...(itsCookie ? { 'its.seu.edu.cn': itsCookie } : {}),
+        ...(libCookie ? { 'libopac.seu.edu.cn': libCookie } : {})
+      },
       browser,
       profile
     };
@@ -183,6 +189,13 @@ function dedupe(cookies) {
     output.push(cookie);
   }
   return output;
+}
+
+function buildAll(cookies) {
+  return cookies
+    .filter((cookie) => cookie.name && cookie.value)
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join('; ');
 }
 
 function buildHeader(cookies, names) {

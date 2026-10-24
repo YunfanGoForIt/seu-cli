@@ -1,7 +1,7 @@
 ---
 name: seu-cli
 description: 通过本地 seu-cli 查询东南大学（SEU）课表、成绩、考试、空闲教室、培养方案、学业预警和全校班级，并导出日历/CSV。复用用户浏览器中已登录的统一身份认证会话，不处理密码；只读，输出结构化 JSON。当用户询问课程、成绩与加权均分、考试安排、空教室、学分进度、学业预警或班级列表时使用。
-version: 0.2.1
+version: 0.3.0
 license: MIT
 ---
 
@@ -47,6 +47,9 @@ license: MIT
 | 培养方案/学分进度 | `seu-cli program show` |
 | 学业预警 | `seu-cli warning` |
 | 全校班级列表 | `seu-cli timetable classes [--search 关键词]` |
+| 查馆藏图书 | `seu-cli library search <关键词>`；详情 `seu-cli library item <marcNo>` |
+| 当前借阅/超期 | `seu-cli library loans` |
+| 借阅历史 | `seu-cli library history [--page N]` |
 
 学期代码格式为 `YYYY-YYYY-N`，例如 `2025-2026-2`。用户说"上学期""这学期"时，先根据日期换算成明确代码；无法确定就先查 `exam list` 返回的 `currentTerm` 或直接不加 `--term` 查询全部成绩。
 

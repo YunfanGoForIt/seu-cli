@@ -10,6 +10,7 @@ import { classroomEmpty } from './commands/classroom.js';
 import { courseExportIcs, courseToday, courseWeek } from './commands/course.js';
 import { examList, examUpcoming } from './commands/exam.js';
 import { gradeList, gradeSummary } from './commands/grade.js';
+import { libraryHistory, libraryItem, libraryLoans, librarySearch } from './commands/library.js';
 import { loginStatus } from './commands/login.js';
 import { programShow } from './commands/program.js';
 import { termCurrent } from './commands/term.js';
@@ -145,6 +146,31 @@ const COMMANDS = {
     },
     run: (context, options) => examUpcoming(context, options)
   },
+  'library search': {
+    summary: '检索馆藏图书。',
+    positionals: 1,
+    options: {
+      page: { type: 'integer', min: 1, max: 100 },
+      limit: { type: 'integer', min: 1, max: 50 }
+    },
+    run: (context, options, positionals) => librarySearch(context, options, positionals)
+  },
+  'library item': {
+    summary: '查看图书详情与馆藏位置。',
+    positionals: 1,
+    options: {},
+    run: (context, options, positionals) => libraryItem(context, options, positionals)
+  },
+  'library loans': {
+    summary: '查看当前借阅和超期情况。',
+    options: {},
+    run: (context) => libraryLoans(context)
+  },
+  'library history': {
+    summary: '查看借阅历史。',
+    options: { page: { type: 'integer', min: 1, max: 100 } },
+    run: (context, options) => libraryHistory(context, options)
+  },
   'apps list': {
     summary: '列出有权限的办事大厅应用。',
     options: {
@@ -160,6 +186,7 @@ const GROUPS = [
   ['学期与课表', ['term current', 'course today', 'course week', 'course export-ics']],
   ['成绩与考试', ['grade list', 'grade summary', 'exam list', 'exam upcoming']],
   ['教务查询', ['classroom empty', 'program show', 'warning', 'timetable classes']],
+  ['图书馆', ['library search', 'library item', 'library loans', 'library history']],
   ['应用目录', ['apps list']]
 ];
 
@@ -283,6 +310,58 @@ const META = {
       search: { description: '按班级/专业/院系过滤' }
     }
   },
+  'library search': {
+    summary: '检索馆藏图书。',
+    positionals: 1,
+    options: {
+      page: { type: 'integer', min: 1, max: 100 },
+      limit: { type: 'integer', min: 1, max: 50 }
+    },
+    run: (context, options, positionals) => librarySearch(context, options, positionals)
+  },
+  'library item': {
+    summary: '查看图书详情与馆藏位置。',
+    positionals: 1,
+    options: {},
+    run: (context, options, positionals) => libraryItem(context, options, positionals)
+  },
+  'library loans': {
+    summary: '查看当前借阅和超期情况。',
+    options: {},
+    run: (context) => libraryLoans(context)
+  },
+  'library history': {
+    summary: '查看借阅历史。',
+    options: { page: { type: 'integer', min: 1, max: 100 } },
+    run: (context, options) => libraryHistory(context, options)
+  },
+  'library search': {
+    backend: 'fetch',
+    usage: 'seu-cli library search <keyword> [--page N] [--limit N]',
+    examples: ['seu-cli library search 数据结构', 'seu-cli library search 算法 --page 2'],
+    returns: 'total, page, pageSize, items[]',
+    optionHelp: {
+      page: { description: '页码', default: 1 },
+      limit: { description: '每页条数', default: 20 }
+    }
+  },
+  'library item': {
+    backend: 'fetch',
+    usage: 'seu-cli library item <marcNo>',
+    examples: ['seu-cli library item 0000312590'],
+    returns: 'marcNo, title, fields, holdings[]'
+  },
+  'library loans': {
+    backend: 'fetch',
+    examples: ['seu-cli library loans'],
+    returns: 'count, overdue, loans[]'
+  },
+  'library history': {
+    backend: 'fetch',
+    examples: ['seu-cli library history', 'seu-cli library history --page 2'],
+    returns: 'page, count, history[]',
+    optionHelp: { page: { description: '页码', default: 1 } }
+  },
   'apps list': {
     backend: 'both',
     examples: ['seu-cli apps list --search 教室', 'seu-cli apps list --limit 20'],
@@ -327,13 +406,13 @@ async function main(argv) {
 
   let backendKind = definition.needsBackend === false ? 'local' : (backend ?? 'auto');
   try {
-    const options = parseOptions(rest, definition.options);
+    const { options, positionals } = parseOptions(rest, definition.options, { positionals: definition.positionals ?? 0 });
     const context = definition.needsBackend === false
       ? {}
       : { backend: await getBackend({ daemonUrl, backend }) };
     if (context.backend) backendKind = context.backend.kind;
 
-    const data = await definition.run(context, options);
+    const data = await definition.run(context, options, positionals);
     writeJson({
       ok: true,
       data,
@@ -349,9 +428,9 @@ async function main(argv) {
       && !noRefresh) {
       try {
         await authRefresh({});
-        const options = parseOptions(rest, definition.options);
+        const { options, positionals } = parseOptions(rest, definition.options, { positionals: definition.positionals ?? 0 });
         const retryBackend = await getBackend({ daemonUrl, backend: 'fetch' });
-        const data = await definition.run({ backend: retryBackend }, options);
+        const data = await definition.run({ backend: retryBackend }, options, positionals);
         writeJson({
           ok: true,
           data,
@@ -483,7 +562,7 @@ function buildCommandHelp(key) {
     command: key,
     summary: definition.summary,
     backend: meta.backend ?? 'both',
-    usage: `seu-cli ${key} [options]`,
+    usage: meta.usage ?? `seu-cli ${key} [options]`,
     options,
     examples: meta.examples ?? [],
     returns: meta.returns ?? null,

@@ -55,3 +55,17 @@
 | `apps list` | `--search`, `--limit` | `total, count, apps[]` |
 
 `apps[]` 字段：`name, appId, serviceWid, description, categories`。fetch 后端需要门户 Cookie。
+
+
+## 图书馆（fetch 后端）
+
+| 命令 | 选项 | 关键返回 |
+|---|---|---|
+| `library search <keyword>` | `--page N`, `--limit N` | `total, page, items[]` |
+| `library item <marcNo>` | — | `title, fields, holdings[]` |
+| `library loans` | — | `count, overdue, loans[]` |
+| `library history` | `--page N` | `page, count, history[]` |
+
+`items[]` 字段：`title, author, publisher, year, isbn, callNo, marcNo, docType`。
+`holdings[]` 字段：`callNo, barcode, volume, location, status`。
+`loans[]` 字段：`barcode, title, borrowDate, dueDate, renewCount, location, overdue`。

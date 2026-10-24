@@ -272,6 +272,143 @@ export class FetchBackend {
     return json?.data;
   }
 
+
+  async librarySearch(keyword, { page = 1, pageSize = 20 } = {}) {
+    const body = {
+      searchWords: [{ fieldList: [{ fieldCode: '', fieldValue: keyword }] }],
+      filters: [],
+      limiter: [],
+      sortField: 'relevance',
+      sortType: 'desc',
+      pageSize,
+      pageCount: page,
+      locale: 'zh_CN',
+      first: page === 1
+    };
+    const text = await this.libFetch('/opac/ajax_search_adv.php', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      contentType: 'application/json'
+    });
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw pageChanged('Library search API did not return JSON.');
+    }
+    return {
+      total: json.total ?? 0,
+      page,
+      pageSize,
+      items: (json.content ?? []).map((item) => ({
+        title: item.title ?? null,
+        author: item.author ?? null,
+        publisher: item.publisher ?? null,
+        year: item.pubYear ?? null,
+        isbn: item.isbn ?? null,
+        callNo: item.callNo ?? null,
+        marcNo: item.marcRecNo ?? null,
+        docType: item.docTypeName ?? null
+      }))
+    };
+  }
+
+  async libraryItem(marcNo) {
+    const html = await this.libFetch(`/opac/item.php?marc_no=${encodeURIComponent(marcNo)}`);
+    const fields = parseBiblio(html);
+    const titleField = fields['题名/责任者:'] ?? fields['题名/责任者'] ?? '';
+    const title = titleField.split(' /')[0].trim()
+      || cleanText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? '');
+    return {
+      marcNo,
+      title: title || null,
+      url: `https://libopac.seu.edu.cn/opac/item.php?marc_no=${marcNo}`,
+      fields,
+      holdings: parseHoldings(html)
+    };
+  }
+
+  async libraryLoans() {
+    const html = await this.libFetch('/reader/book_lst.php');
+    if (isLoginPage(html)) throw notLoggedIn('The library OPAC session is not logged in.');
+    const rows = parseRows(html);
+    const header = rows.find((row) => row.includes('条码号') && row.includes('应还日期'));
+    if (!header) return { count: 0, overdue: 0, loans: [] };
+    const today = todayText();
+    const loans = rows
+      .slice(rows.indexOf(header) + 1)
+      .filter((row) => row.length >= header.length && row[0])
+      .map((row) => {
+        const item = Object.fromEntries(header.map((key, index) => [key, row[index] ?? '']));
+        const dueDate = item['应还日期'] ?? null;
+        return {
+          barcode: item['条码号'] ?? null,
+          title: item['题名/责任者'] ?? null,
+          borrowDate: item['借阅日期'] ?? null,
+          dueDate,
+          renewCount: toNumber(item['续借量']),
+          location: item['馆藏地'] ?? null,
+          overdue: Boolean(dueDate && dueDate < today)
+        };
+      });
+    return {
+      count: loans.length,
+      overdue: loans.filter((loan) => loan.overdue).length,
+      loans
+    };
+  }
+
+  async libraryHistory(page = 1) {
+    const html = await this.libFetch(`/reader/book_hist.php?page=${page}`);
+    if (isLoginPage(html)) throw notLoggedIn('The library OPAC session is not logged in.');
+    const rows = parseRows(html);
+    const header = rows.find((row) => row.includes('条码号') && row.includes('归还日期'));
+    if (!header) return { page, count: 0, history: [] };
+    const history = rows
+      .slice(rows.indexOf(header) + 1)
+      .filter((row) => row.length >= header.length && row[0])
+      .map((row) => {
+        const item = Object.fromEntries(header.map((key, index) => [key, row[index] ?? '']));
+        return {
+          barcode: item['条码号'] ?? null,
+          title: item['题名'] ?? null,
+          author: item['责任者'] ?? null,
+          borrowDate: item['借阅日期'] ?? null,
+          returnDate: item['归还日期'] ?? null,
+          location: item['馆藏地'] ?? null
+        };
+      });
+    return { page, count: history.length, history };
+  }
+
+  async libFetch(path, { method = 'GET', body, contentType } = {}) {
+    const cookie = this.hostCookies?.['libopac.seu.edu.cn'];
+    const headers = {
+      'User-Agent': USER_AGENT,
+      'Accept': 'text/html,application/json,application/xhtml+xml,*/*'
+    };
+    if (cookie) headers.Cookie = cookie;
+    if (contentType) headers['Content-Type'] = contentType;
+
+    let response;
+    try {
+      response = await fetch(`https://libopac.seu.edu.cn${path}`, {
+        method,
+        headers,
+        body,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+    } catch (cause) {
+      throw new CliError('NETWORK_ERROR', `Request to libopac.seu.edu.cn failed: ${cause?.message ?? cause}`, { cause });
+    }
+    if (response.status === 401) throw notLoggedIn('libopac.seu.edu.cn rejected the saved cookie.');
+    if (response.status === 403) {
+      throw new CliError('PERMISSION_DENIED', `libopac.seu.edu.cn returned HTTP 403 for ${path}.`);
+    }
+    return response.text();
+  }
+
   async currentTerm() {
     const json = await this.post('/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do', '');
     const term = rowsOf(json, 'dqxnxq')[0];
@@ -380,6 +517,79 @@ export class FetchBackend {
   }
 }
 
+
+function parseBiblio(html) {
+  const fields = {};
+  for (const match of html.matchAll(/<dl class="booklist">([\s\S]*?)<\/dl>/gi)) {
+    const dt = match[1].match(/<dt>([\s\S]*?)<\/dt>/i);
+    const dd = match[1].match(/<dd>([\s\S]*?)<\/dd>/i);
+    if (dt && dd) {
+      const key = cleanText(dt[1]);
+      if (key) fields[key] = cleanText(dd[1]);
+    }
+  }
+  return fields;
+}
+
+function parseHoldings(html) {
+  const table = html.match(/<table[^>]*id="item"[^>]*>([\s\S]*?)<\/table>/i);
+  if (!table) return [];
+  const rows = parseRows(table[1]);
+  const header = rows.find((row) => row.includes('索书号') && row.includes('馆藏地'));
+  if (!header) return [];
+  return rows
+    .slice(rows.indexOf(header) + 1)
+    .filter((row) => row.length >= header.length && row[0])
+    .map((row) => {
+      const item = Object.fromEntries(header.map((key, index) => [key, row[index] ?? '']));
+      return {
+        callNo: item['索书号'] ?? null,
+        barcode: item['条码号'] ?? null,
+        volume: item['年卷期'] ?? null,
+        location: item['馆藏地'] ?? null,
+        status: item['书刊状态'] ?? null
+      };
+    });
+}
+
+function parseRows(html) {
+  const rows = [];
+  for (const row of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)]
+      .map((cell) => cleanText(cell[1]));
+    if (cells.length) rows.push(cells);
+  }
+  return rows;
+}
+
+function cleanText(html) {
+  return decodeEntities(String(html).replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function decodeEntities(text) {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;/g, "'");
+}
+
+function isLoginPage(html) {
+  return /redr_login|读者登录|用户登录/.test(html) && !/当前借阅|借阅历史/.test(html);
+}
+
+function todayText() {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function rowsOf(json, key) {
   return json?.datas?.[key]?.rows ?? [];
 }
@@ -437,4 +647,9 @@ function mondayOf(date) {
   const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   copy.setDate(copy.getDate() - (isoWeekday(copy) - 1));
   return copy;
+}
+
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
