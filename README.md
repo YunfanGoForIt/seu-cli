@@ -25,7 +25,7 @@ npm install --global .
 
 # 或分发 tarball
 npm pack
-npm install --global ./seu-cli-0.3.0.tgz
+npm install --global ./seu-cli-0.3.1.tgz
 ```
 
 项目没有第三方运行时依赖；fetch 后端只需要 Node。
@@ -97,12 +97,37 @@ seu-cli auth refresh
 
 直接读取本机 Chrome 的 Cookie 数据库，用 macOS Keychain 派生密钥解密，不需要浏览器插件或 Playwright。如果应用会话失效，它会用 Chrome 打开一次门户/课表页，让浏览器自己完成 SSO，然后重新同步；fetch 命令遇到 `NOT_LOGGED_IN` 也会自动尝试一次。可用 `--no-refresh` 关闭自动续期。
 
-目前自动同步支持 macOS + Chrome/Edge；其他平台请用 `auth import` 手动导入。
+目前自动同步支持 macOS + Chrome/Edge；Windows 请用 `auth import` 手动导入。
+
+## 平台支持
+
+| 功能 | macOS | Windows |
+|---|---|---|
+| 课表/成绩/考试/培养方案/预警/班级 | 支持 | 支持（手动导入应用 Cookie） |
+| `library search` / `library item` | 支持 | 支持（公开接口） |
+| `library loans` / `library history` | 支持（自动同步） | 支持（需 `--lib-cookie-file`） |
+| `classroom empty` | 支持（自动同步） | 支持（需 `--its-cookie-file`） |
+| `auth refresh` 自动续期 | 支持 | 暂不支持，返回 `SYNC_UNSUPPORTED` |
+| bridge 后端 | 支持 | 支持（需安装 Kimi 扩展与守护进程） |
+| ICS/CSV 导出 | 支持 | 支持 |
+
+Windows 完整导入示例：
+
+```bash
+seu-cli auth import ^
+  --cookie-file app.txt ^
+  --portal-cookie-file portal.txt ^
+  --its-cookie-file its.txt ^
+  --lib-cookie-file lib.txt
+```
+
+`its.txt` 从 `its.seu.edu.cn` 的接口请求复制 Cookie；`lib.txt` 从 `libopac.seu.edu.cn` 的请求复制。
 
 ## 命令
 
 ```bash
-seu-cli auth import --cookie-file app-cookie.txt [--portal-cookie-file portal-cookie.txt]
+seu-cli auth import --cookie-file app-cookie.txt [--portal-cookie-file portal-cookie.txt] \
+  [--its-cookie-file its-cookie.txt] [--lib-cookie-file lib-cookie.txt]
 seu-cli auth refresh
 seu-cli auth status
 seu-cli auth logout

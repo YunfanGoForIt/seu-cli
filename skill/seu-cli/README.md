@@ -8,7 +8,7 @@
 # 仓库内
 npm install --global .
 # 或分发包
-npm install --global ./seu-cli-0.3.0.tgz
+npm install --global ./seu-cli-0.3.1.tgz
 ```
 
 要求 Node.js >= 20。

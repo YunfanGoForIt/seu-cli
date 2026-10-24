@@ -36,11 +36,20 @@ seu-cli auth refresh
 
 fetch 命令遇到 `NOT_LOGGED_IN` 会自动执行一次 `auth refresh` 并重试；`--no-refresh` 可关闭。
 
-限制：自动同步目前只支持 macOS + Chrome/Edge。其他平台用：
+限制：自动同步目前只支持 macOS + Chrome/Edge。Windows 用：
 
 ```bash
-seu-cli auth import --cookie-file app.txt [--portal-cookie-file portal.txt]
+seu-cli auth import --cookie-file app.txt --portal-cookie-file portal.txt \
+  --its-cookie-file its.txt --lib-cookie-file lib.txt
 ```
+
+| 功能 | macOS | Windows |
+|---|---|---|
+| 课表/成绩/考试/培养方案/预警/班级 | 自动同步 | 手动导入应用 Cookie |
+| 图书馆检索/详情 | 支持 | 支持（公开） |
+| 当前借阅/历史 | 自动同步 | 手动导入 libopac Cookie |
+| 空闲教室 | 自动同步 | 手动导入 its Cookie |
+| `auth refresh` | 支持 | `SYNC_UNSUPPORTED` |
 
 ## Cookie 怎么取
 

@@ -11,26 +11,39 @@ import { deleteSession, saveSession, sessionPath } from '../session.js';
 export async function authImport(_context, options = {}) {
   const cookie = await readCookie(options.cookie, options.cookieFile);
   const portalCookie = await readCookie(options.portalCookie, options.portalCookieFile);
+  const itsCookie = await readCookie(options.itsCookie, options.itsCookieFile);
+  const libCookie = await readCookie(options.libCookie, options.libCookieFile);
 
-  if (!cookie && !portalCookie) {
-    throw invalidArgument('Provide --cookie-file <path> (app cookie) or --portal-cookie-file <path> (portal cookie).');
+  const hostCookies = {
+    ...(itsCookie ? { 'its.seu.edu.cn': itsCookie } : {}),
+    ...(libCookie ? { 'libopac.seu.edu.cn': libCookie } : {})
+  };
+
+  if (!cookie && !portalCookie && !itsCookie && !libCookie) {
+    throw invalidArgument('Provide at least one cookie file: --cookie-file, --portal-cookie-file, --its-cookie-file or --lib-cookie-file.');
   }
 
-  const status = await new FetchBackend(cookie, portalCookie).loginStatus();
+  const status = cookie || portalCookie
+    ? await new FetchBackend(cookie, portalCookie, hostCookies).loginStatus()
+    : null;
   const file = await saveSession({
     cookie,
     portalCookie,
-    user: status.user ?? null
+    hostCookies,
+    user: status?.user ?? null
   });
 
   return {
     imported: true,
-    user: status.user ?? null,
+    user: status?.user ?? null,
     cookieKinds: {
       app: Boolean(cookie),
-      portal: Boolean(portalCookie)
+      portal: Boolean(portalCookie),
+      its: Boolean(itsCookie),
+      libopac: Boolean(libCookie)
     },
-    ...(status.note ? { note: status.note } : {}),
+    ...(status ? {} : { validated: false, note: 'Only host cookies were imported; app/portal commands still need an app cookie.' }),
+    ...(status?.note ? { note: status.note } : {}),
     sessionPath: file
   };
 }

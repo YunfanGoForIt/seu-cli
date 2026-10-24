@@ -29,7 +29,11 @@ const COMMANDS = {
       cookieFile: { type: 'string' },
       cookie: { type: 'string' },
       portalCookieFile: { type: 'string' },
-      portalCookie: { type: 'string' }
+      portalCookie: { type: 'string' },
+      itsCookieFile: { type: 'string' },
+      itsCookie: { type: 'string' },
+      libCookieFile: { type: 'string' },
+      libCookie: { type: 'string' }
     },
     run: (context, options) => authImport(context, options)
   },
@@ -206,7 +210,11 @@ const META = {
       cookieFile: { description: '应用 Cookie 文件' },
       cookie: { description: '直接传入应用 Cookie' },
       portalCookieFile: { description: '门户 Cookie 文件（apps list 用）' },
-      portalCookie: { description: '直接传入门户 Cookie' }
+      portalCookie: { description: '直接传入门户 Cookie' },
+      itsCookieFile: { description: 'its.seu.edu.cn Cookie 文件（空闲教室用）' },
+      itsCookie: { description: '直接传入 its Cookie' },
+      libCookieFile: { description: 'libopac.seu.edu.cn Cookie 文件（借阅用）' },
+      libCookie: { description: '直接传入 libopac Cookie' }
     }
   },
   'auth refresh': {
