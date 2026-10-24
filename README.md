@@ -25,7 +25,7 @@ npm install --global .
 
 # 或分发 tarball
 npm pack
-npm install --global ./seu-cli-0.1.0.tgz
+npm install --global ./seu-cli-0.2.1.tgz
 ```
 
 项目没有第三方运行时依赖；fetch 后端只需要 Node。

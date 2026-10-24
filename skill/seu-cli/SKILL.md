@@ -1,13 +1,23 @@
 ---
 name: seu-cli
-description: 通过本地 seu-cli 查询东南大学（SEU）课表、成绩和考试安排，并导出日历/CSV、列出校园应用。复用用户浏览器中已登录的统一身份认证会话，不处理密码；只读，输出结构化 JSON。当用户询问"今天有什么课""本周课表""导课表到日历""查成绩/绩点""导出成绩""考试安排/考场座位""下一场考试"或"学校有哪些应用"等东南大学校园信息时使用。
-version: 0.2.0
+description: 通过本地 seu-cli 查询东南大学（SEU）课表、成绩、考试、空闲教室、培养方案、学业预警和全校班级，并导出日历/CSV。复用用户浏览器中已登录的统一身份认证会话，不处理密码；只读，输出结构化 JSON。当用户询问课程、成绩与加权均分、考试安排、空教室、学分进度、学业预警或班级列表时使用。
+version: 0.2.1
 license: MIT
 ---
 
 # 东南大学校园服务 Skill（seu-cli）
 
 `seu-cli` 是唯一事实来源。本 Skill 只说明何时调用、如何解释结果，不实现抓取或业务逻辑。
+
+## 按需读取
+
+只在需要时读取对应文件，不要一次性全部加载：
+
+- 参数、默认值、输出字段 → `references/commands.md`
+- 错误码、重试策略 → `references/errors.md`
+- 自然语言 → 命令示例 → `references/examples.md`
+- 登录、Cookie 同步、fetch/bridge → `references/backends.md`
+- Cookie、隐私、只读边界 → `references/privacy-safety.md`
 
 ## 前置检查
 
@@ -51,6 +61,7 @@ license: MIT
 ## 边界
 
 - 只读。不要尝试选课、预约、缴费、评教等写操作；当前 CLI 也不提供。
+- `classroom empty`、`program show`、`warning`、`timetable classes`、`apps list` 目前只支持 fetch 后端；bridge 会返回 `UNSUPPORTED_BACKEND`。
 - Cookie 是登录凭证：不要索取、回显、记录或转发；只让用户在本地保存为文件后通过 `auth import --cookie-file` 导入。
 - 电子成绩单（`zzfw.seu.edu.cn`）使用独立账号密码登录，CLI 未接入；不要索取或代填密码，让用户自行在浏览器操作。
 - 不要绕过统一身份认证、验证码或访问控制。
